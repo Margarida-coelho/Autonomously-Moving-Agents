@@ -1,156 +1,181 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.AI;
 
-public class Bot : MonoBehaviour {
-
-    public GameObject target;
-    public GameObject sphere;
-
-    GameObject jitter;
-
+public class Bot : MonoBehaviour
+{
     NavMeshAgent agent;
+    [SerializeField] GameObject target;
     Drive ds;
-    Vector3 wanderTarget = Vector3.zero;
 
-    float q = 0.0f;
+    [SerializeField] float wanderRadius = 10;
 
+    [SerializeField] float wanderDistance = 20;
 
-    void Start() {
+    [SerializeField] float wanderJitter = 2;
 
-        agent = GetComponent<NavMeshAgent>();
-        ds = target.GetComponent<Drive>();
-        jitter = Instantiate(sphere);
+    // Start is called before the first frame update
+    void Start()
+    {
+        agent = this.GetComponent<NavMeshAgent>();
+        ds = target.AddComponent<Drive>();
     }
 
-    void Seek(Vector3 location) {
-
+    void Seek(Vector3 location)
+    {
         agent.SetDestination(location);
     }
 
-    void Flee(Vector3 location) {
-
-        Vector3 fleeVector = location - transform.position;
-        agent.SetDestination(transform.position - fleeVector);
+    void Flee(Vector3 location)
+    {
+        Vector3 fleeVector = location - this.transform.position;
+        agent.SetDestination(this.transform.position - fleeVector);
     }
 
-    void Pursue() {
+    void Pursue()
+    {
+        Vector3 targetDir = target.transform.position - this.transform.position;
 
-        Vector3 targetDir = target.transform.position - transform.position;
-        float relativeHeading = Vector3.Angle(transform.forward, transform.TransformVector(target.transform.forward));
-        float toTarget = Vector3.Angle(transform.forward, transform.TransformVector(targetDir));
+        float relativeHeading = Vector3.Angle(this.transform.forward, this.transform.TransformVector(target.transform.forward));
+        float toTarget = Vector3.Angle(this.transform.forward, this.transform.TransformVector(targetDir));
 
-
-        if ((toTarget > 90.0f && relativeHeading < 20.0f) || ds.currentSpeed < 0.01f) {
-
-            // Debug.Log("SEEKING");
+        if ((relativeHeading < 20 && toTarget > 90) || ds.currentSpeed < 0.01f)
+        {
             Seek(target.transform.position);
             return;
         }
 
-        // Debug.Log("LOOKING AHEAD");
         float lookAhead = targetDir.magnitude / (agent.speed + ds.currentSpeed);
+
         Seek(target.transform.position + target.transform.forward * lookAhead);
     }
 
-    void Evade() {
+    void Evade()
+    {
+        Vector3 targetDir = target.transform.position - this.transform.position;
 
-        Vector3 targetDir = target.transform.position - transform.position;
         float lookAhead = targetDir.magnitude / (agent.speed + ds.currentSpeed);
+
         Flee(target.transform.position + target.transform.forward * lookAhead);
     }
 
-    void Wander() {
+    Vector3 wanderTarget = Vector3.zero;
 
-        float wanderRadius = 10.0f;
-        float wanderDistance = 20.0f;
-        float wanderJitter = 1.0f;
+    void Wander()
+    {
+        //when we do this the wander target is off the wander radius
+        wanderTarget += new Vector3(Random.Range(-1.0f, 1.0f) * wanderJitter, 0, Random.Range(-1.0f, 1.0f) * wanderJitter);
 
-        wanderTarget += new Vector3(
-            Random.Range(-1.0f, 1.0f) * wanderJitter,
-            0.0f,
-            Random.Range(-1.0f, 1.0f));
+        //so then we normalize it which will put it to values of 1 etc..
         wanderTarget.Normalize();
+
+        //and then we multiply it by the wander radius that puts it again on the edge of the wander radius (imagine a circle)
         wanderTarget *= wanderRadius;
 
-        Vector3 targetLocal = wanderTarget + new Vector3(0.0f, 0.0f, wanderDistance);
-        Vector3 targetWorld = gameObject.transform.InverseTransformVector(targetLocal);
+        Vector3 targetLocal = wanderTarget + new Vector3(0, 0, wanderDistance);
+        Vector3 targetWorld = this.gameObject.transform.InverseTransformVector(targetLocal);
 
-        Debug.DrawLine(transform.position, targetWorld, Color.red);
-        jitter.transform.position = targetWorld;
         Seek(targetWorld);
     }
 
-    void Hide() {
-
+    void Hide()
+    {
         float dist = Mathf.Infinity;
         Vector3 chosenSpot = Vector3.zero;
 
-        for (int i = 0; i < World.Instance.GetHidingSpots().Length; ++i) {
-
+        for (int i = 0; i < World.Instance.GetHidingSpots().Length; i++)
+        {
             Vector3 hideDir = World.Instance.GetHidingSpots()[i].transform.position - target.transform.position;
-            Vector3 hidePos = World.Instance.GetHidingSpots()[i].transform.position + hideDir.normalized * 10.0f;
+            Vector3 hidePosition = World.Instance.GetHidingSpots()[i].transform.position + hideDir.normalized * 5;
 
-            if (Vector3.Distance(transform.position, hidePos) < dist) {
-
-                chosenSpot = hidePos;
-                dist = Vector3.Distance(transform.position, hidePos);
+            if (Vector3.Distance(this.transform.position, hidePosition) < dist)
+            {
+                chosenSpot = hidePosition;
+                dist = Vector3.Distance(this.transform.position, hidePosition);
             }
         }
 
         Seek(chosenSpot);
     }
 
-    void CleverHide() {
-
+    void CleverHide()
+    {
         float dist = Mathf.Infinity;
         Vector3 chosenSpot = Vector3.zero;
         Vector3 chosenDir = Vector3.zero;
         GameObject chosenGO = World.Instance.GetHidingSpots()[0];
 
-        for (int i = 0; i < World.Instance.GetHidingSpots().Length; ++i) {
-
+        for (int i = 0; i < World.Instance.GetHidingSpots().Length; i++)
+        {
             Vector3 hideDir = World.Instance.GetHidingSpots()[i].transform.position - target.transform.position;
-            Vector3 hidePos = World.Instance.GetHidingSpots()[i].transform.position + hideDir.normalized * 10.0f;
+            Vector3 hidePosition = World.Instance.GetHidingSpots()[i].transform.position + hideDir.normalized * 5;
 
-            if (Vector3.Distance(transform.position, hidePos) < dist) {
-
-                chosenSpot = hidePos;
+            if (Vector3.Distance(this.transform.position, hidePosition) < dist)
+            {
+                chosenSpot = hidePosition;
                 chosenDir = hideDir;
                 chosenGO = World.Instance.GetHidingSpots()[i];
-                dist = Vector3.Distance(transform.position, hidePos);
+                dist = Vector3.Distance(this.transform.position, hidePosition);
             }
         }
 
         Collider hideCol = chosenGO.GetComponent<Collider>();
+
         Ray backRay = new Ray(chosenSpot, -chosenDir.normalized);
+
         RaycastHit info;
+
         float distance = 100.0f;
+
         hideCol.Raycast(backRay, out info, distance);
 
-        Seek(info.point + chosenDir.normalized * 2.0f);
+        Seek(info.point + chosenDir.normalized * 5);
     }
 
-    bool CanSeeTarget() {
-
+    bool CanSeeTarget()
+    {
         RaycastHit raycastInfo;
-        Vector3 rayToTarget = target.transform.position - transform.position;
-        if (Physics.Raycast(transform.position, rayToTarget, out raycastInfo)) {
+        Vector3 rayToTarget = target.transform.position - this.transform.position;
 
-            if (raycastInfo.transform.gameObject.tag == "cop") return true;
+        float lookAngle = Vector3.Angle(this.transform.forward, rayToTarget);
+
+        if (lookAngle < 60 && Physics.Raycast(this.transform.position, rayToTarget, out raycastInfo))
+        {
+            if (raycastInfo.transform.gameObject.tag == "cop")
+                return true;
         }
+
         return false;
     }
 
-    void Update() {
-
-        // Seek(target.transform.position);
-        // Flee(target.transform.position);
-        // Pursue();
-        // Evade();
-        // Wander();
-        // Hide();
-        if (CanSeeTarget()) CleverHide();
+    bool CanSeeMe()
+    {
+        Vector3 targetVector = this.transform.position - target.transform.position;
+        float lookAngle = Vector3.Angle(target.transform.forward, targetVector);
+        if (lookAngle < 60)
+            return true;
+        return false;
+    }
+    bool coolDown = false;
+    void BehaviourCooldown()
+    {
+        coolDown = false;
+    }
+    // Update is called once per frame
+    void Update()
+    {
+        if (!coolDown)
+        {
+            if (CanSeeTarget() && CanSeeMe())
+            {
+                CleverHide();
+                coolDown = true;
+                Invoke("BehaviourCooldown", 5);
+            }
+            else
+                Pursue();
+        }
     }
 }
